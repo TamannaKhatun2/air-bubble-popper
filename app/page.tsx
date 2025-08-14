@@ -34,7 +34,7 @@ interface Level {
   bubbleCount: number
   minSize: number
   maxSize: number
-  timeLimit: number
+  timeLimit?: number
   theme: {
     background: string
     bubbleColors: string[]
@@ -43,7 +43,6 @@ interface Level {
   unlocks?: {
     soundEffect?: string
     bubbleSkin?: string
-    message: string
   }
 }
 
@@ -80,10 +79,9 @@ const levels: Level[] = [
     bubbleCount: 15,
     minSize: 60,
     maxSize: 80,
-    timeLimit: 60,
     theme: {
       background: "from-pink-100 via-rose-100 to-pink-200",
-      bubbleColors: ["from-pink-300 to-rose-400", "from-rose-300 to-pink-400", "from-pink-400 to-rose-500"],
+      bubbleColors: ["from-pink-300 to-rose-400", "from-rose-300 to-pink-400"],
       name: "Pastel Pink Dreams",
     },
   },
@@ -93,32 +91,30 @@ const levels: Level[] = [
     bubbleCount: 20,
     minSize: 50,
     maxSize: 70,
-    timeLimit: 50,
+    timeLimit: 60,
     theme: {
       background: "from-cyan-100 via-blue-100 to-teal-200",
-      bubbleColors: ["from-cyan-300 to-blue-400", "from-blue-300 to-teal-400", "from-teal-300 to-cyan-400"],
+      bubbleColors: ["from-cyan-300 to-blue-400", "from-blue-300 to-teal-400"],
       name: "Aqua Blue Waves",
     },
     unlocks: {
       soundEffect: "ocean",
-      message: "Ocean sound effects unlocked! 🌊",
     },
   },
   {
     number: 3,
-    name: "Neon Nights",
+    name: "Neon Dreams",
     bubbleCount: 25,
     minSize: 40,
     maxSize: 60,
-    timeLimit: 45,
+    timeLimit: 50,
     theme: {
       background: "from-purple-200 via-violet-200 to-purple-300",
-      bubbleColors: ["from-purple-400 to-violet-500", "from-violet-400 to-purple-500", "from-indigo-400 to-purple-500"],
-      name: "Electric Purple Vibes",
+      bubbleColors: ["from-purple-400 to-violet-500", "from-violet-400 to-purple-500"],
+      name: "Electric Purple",
     },
     unlocks: {
       bubbleSkin: "neon",
-      message: "Neon bubble skins unlocked! ⚡",
     },
   },
   {
@@ -127,29 +123,28 @@ const levels: Level[] = [
     bubbleCount: 30,
     minSize: 35,
     maxSize: 55,
-    timeLimit: 40,
+    timeLimit: 45,
     theme: {
-      background: "from-orange-100 via-yellow-100 to-red-200",
-      bubbleColors: ["from-orange-400 to-red-500", "from-yellow-400 to-orange-500", "from-red-400 to-pink-500"],
-      name: "Golden Hour Magic",
+      background: "from-orange-200 via-yellow-200 to-red-200",
+      bubbleColors: ["from-orange-400 to-red-500", "from-yellow-400 to-orange-500"],
+      name: "Golden Hour",
     },
   },
   {
     number: 5,
-    name: "Cosmic Storm",
+    name: "Cosmic Challenge",
     bubbleCount: 35,
     minSize: 30,
     maxSize: 50,
-    timeLimit: 35,
+    timeLimit: 40,
     theme: {
-      background: "from-indigo-200 via-purple-200 to-blue-300",
-      bubbleColors: ["from-indigo-500 to-purple-600", "from-purple-500 to-blue-600", "from-blue-500 to-indigo-600"],
-      name: "Galactic Adventure",
+      background: "from-indigo-300 via-purple-300 to-pink-300",
+      bubbleColors: ["from-indigo-500 to-purple-600", "from-purple-500 to-pink-600"],
+      name: "Galaxy Vibes",
     },
     unlocks: {
       soundEffect: "cosmic",
       bubbleSkin: "galaxy",
-      message: "Cosmic effects & galaxy skins unlocked! 🌌",
     },
   },
 ]
@@ -166,12 +161,12 @@ export default function AirBubblePopper() {
   const [showQuote, setShowQuote] = useState(false)
 
   const [currentLevel, setCurrentLevel] = useState(1)
-  const [gameState, setGameState] = useState<"menu" | "playing" | "levelComplete" | "gameOver">("menu")
-  const [timeLeft, setTimeLeft] = useState(0)
+  const [gameState, setGameState] = useState<"menu" | "playing" | "levelComplete" | "gameComplete">("menu")
+  const [timeLeft, setTimeLeft] = useState<number | null>(null)
   const [bubblesRemaining, setBubblesRemaining] = useState(0)
   const [showLevelIntro, setShowLevelIntro] = useState(false)
   const [completionMessage, setCompletionMessage] = useState("")
-  const [unlockedFeatures, setUnlockedFeatures] = useState<string[]>([])
+  const [unlockedRewards, setUnlockedRewards] = useState<string[]>([])
   const [confetti, setConfetti] = useState<Particle[]>([])
 
   const gameAreaRef = useRef<HTMLDivElement>(null)
@@ -220,59 +215,51 @@ export default function AirBubblePopper() {
     [soundEnabled],
   )
 
-  const generateBubbles = useCallback((levelNum: number) => {
-    const level = levels[levelNum - 1]
+  // Create particles
+  const createParticles = useCallback((x: number, y: number, color: string) => {
+    const newParticles: Particle[] = []
+    for (let i = 0; i < 8; i++) {
+      newParticles.push({
+        id: Date.now() + i,
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8 - 2,
+        life: 30,
+        maxLife: 30,
+        color,
+      })
+    }
+    setParticles((prev) => [...prev, ...newParticles])
+  }, [])
+
+  const generateBubbles = useCallback((levelNumber: number) => {
+    const level = levels[levelNumber - 1]
     if (!level) return
 
     const newBubbles: Bubble[] = []
-    const isMobile = window.innerWidth < 768
-    const bubbleCount = isMobile ? Math.floor(level.bubbleCount * 0.7) : level.bubbleCount
+    const bubbleCount = window.innerWidth < 768 ? Math.max(level.bubbleCount - 5, 10) : level.bubbleCount
 
     for (let i = 0; i < bubbleCount; i++) {
+      const colorIndex = Math.floor(Math.random() * level.theme.bubbleColors.length)
       newBubbles.push({
         id: i,
-        x: Math.random() * 85 + 7.5, // More padding from edges
+        x: Math.random() * 85 + 7.5, // More padding for smaller bubbles
         y: Math.random() * 85 + 7.5,
         size: Math.random() * (level.maxSize - level.minSize) + level.minSize,
-        color: level.theme.bubbleColors[Math.floor(Math.random() * level.theme.bubbleColors.length)],
+        color: level.theme.bubbleColors[colorIndex],
         isPopping: false,
-        shimmer: Math.random() > 0.6,
+        shimmer: Math.random() > 0.5,
       })
     }
     setBubbles(newBubbles)
-    setBubblesRemaining(bubbleCount)
+    setBubblesRemaining(newBubbles.length)
   }, [])
 
-  const startLevel = useCallback(
-    (levelNum: number) => {
-      const level = levels[levelNum - 1]
-      if (!level) return
-
-      setShowLevelIntro(true)
-      setTimeout(() => {
-        setShowLevelIntro(false)
-        setGameState("playing")
-        setTimeLeft(level.timeLimit)
-        generateBubbles(levelNum)
-
-        // Start timer
-        timerRef.current = setInterval(() => {
-          setTimeLeft((prev) => {
-            if (prev <= 1) {
-              setGameState("gameOver")
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-      }, 2000)
-    },
-    [generateBubbles],
-  )
-
-  const completeLevel = useCallback(() => {
+  const completeLevel = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current)
+      timerRef.current = null
     }
 
     const level = levels[currentLevel - 1]
@@ -297,34 +284,142 @@ export default function AirBubblePopper() {
 
     // Check for unlocks
     if (level?.unlocks) {
-      setUnlockedFeatures((prev) => [...prev, level.unlocks!.message])
+      const newUnlocks: string[] = []
+      if (level.unlocks.soundEffect) newUnlocks.push(`Sound: ${level.unlocks.soundEffect}`)
+      if (level.unlocks.bubbleSkin) newUnlocks.push(`Skin: ${level.unlocks.bubbleSkin}`)
+      setUnlockedRewards((prev) => [...prev, ...newUnlocks])
     }
 
-    setGameState("levelComplete")
-    setScore((prev) => prev + timeLeft * 5) // Bonus points for remaining time
-  }, [currentLevel, timeLeft])
+    // Bonus score for completing level
+    setScore((prev) => prev + currentLevel * 100)
+
+    if (currentLevel >= levels.length) {
+      setGameState("gameComplete")
+    } else {
+      setGameState("levelComplete")
+    }
+  }
+
+  const resetGame = useCallback(() => {
+    setScore(0)
+    setStreak(0)
+    setCurrentQuote("")
+    setShowQuote(false)
+    setParticles([])
+    setConfetti([])
+    setCurrentLevel(1)
+    setGameState("menu")
+    setTimeLeft(null)
+    setBubblesRemaining(0)
+    setCompletionMessage("")
+    setBubbles([])
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  const startLevel = useCallback(
+    (levelNumber: number) => {
+      const level = levels[levelNumber - 1]
+      if (!level) return
+
+      setCurrentLevel(levelNumber)
+      setShowLevelIntro(true)
+      setGameState("playing")
+
+      // Show level intro animation
+      setTimeout(() => {
+        setShowLevelIntro(false)
+        generateBubbles(levelNumber)
+
+        // Start timer if level has time limit
+        if (level.timeLimit) {
+          setTimeLeft(level.timeLimit)
+          timerRef.current = setInterval(() => {
+            setTimeLeft((prev) => {
+              if (prev === null || prev <= 1) {
+                // Time's up - game over
+                setGameState("menu")
+                resetGame()
+                return null
+              }
+              return prev - 1
+            })
+          }, 1000)
+        }
+      }, 2000)
+    },
+    [generateBubbles, resetGame],
+  )
+
+  const popBubble = useCallback(
+    (bubbleId: number, event: React.MouseEvent | React.TouchEvent) => {
+      const rect = gameAreaRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      const clientX = "touches" in event ? event.touches[0]?.clientX || event.changedTouches[0]?.clientX : event.clientX
+      const clientY = "touches" in event ? event.touches[0]?.clientY || event.changedTouches[0]?.clientY : event.clientY
+
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+
+      setBubbles((prev) => prev.map((bubble) => (bubble.id === bubbleId ? { ...bubble, isPopping: true } : bubble)))
+
+      // Create particles at click/touch position
+      createParticles(x, y, "#ff69b4")
+
+      // Use unlocked sound effects
+      const level = levels[currentLevel - 1]
+      const soundType = level?.unlocks?.soundEffect || "default"
+      playPopSound(soundType)
+
+      setScore((prev) => prev + 10 * currentLevel) // More points for higher levels
+      setStreak((prev) => {
+        const newStreak = prev + 1
+        if (newStreak > bestStreak) {
+          setBestStreak(newStreak)
+        }
+
+        // Show quote on streak milestones
+        if (newStreak % 5 === 0) {
+          const quote = popQuotes[Math.floor(Math.random() * popQuotes.length)]
+          setCurrentQuote(quote)
+          setShowQuote(true)
+          setTimeout(() => setShowQuote(false), 2000)
+        }
+
+        return newStreak
+      })
+
+      // Remove bubble after animation and check level completion
+      setTimeout(() => {
+        setBubbles((prev) => {
+          const newBubbles = prev.filter((bubble) => bubble.id !== bubbleId)
+          setBubblesRemaining(newBubbles.length)
+
+          // Check if level is complete
+          if (newBubbles.length === 0 && gameState === "playing") {
+            setTimeout(() => completeLevel(), 500)
+          }
+
+          return newBubbles
+        })
+      }, 300)
+    },
+    [createParticles, playPopSound, bestStreak, currentLevel, gameState],
+  )
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setParticles((prev) =>
-        prev
-          .map((particle) => ({
-            ...particle,
-            x: particle.x + particle.vx,
-            y: particle.y + particle.vy,
-            vy: particle.vy + 0.5,
-            life: particle.life - 1,
-          }))
-          .filter((particle) => particle.life > 0),
-      )
-
       setConfetti((prev) =>
         prev
           .map((particle) => ({
             ...particle,
             x: particle.x + particle.vx,
             y: particle.y + particle.vy,
-            vy: particle.vy + 0.3,
+            vy: particle.vy + 0.3, // gravity
             life: particle.life - 1,
           }))
           .filter((particle) => particle.life > 0),
@@ -332,13 +427,6 @@ export default function AirBubblePopper() {
     }, 16)
     return () => clearInterval(interval)
   }, [])
-
-  // Check level completion
-  useEffect(() => {
-    if (gameState === "playing" && bubblesRemaining === 0) {
-      completeLevel()
-    }
-  }, [bubblesRemaining, gameState, completeLevel])
 
   // Shimmer animation
   useEffect(() => {
@@ -353,101 +441,25 @@ export default function AirBubblePopper() {
     return () => clearInterval(interval)
   }, [])
 
-  // Create particles
-  const createParticles = useCallback((x: number, y: number, color: string) => {
-    const newParticles: Particle[] = []
-    for (let i = 0; i < 8; i++) {
-      newParticles.push({
-        id: Date.now() + i,
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 8 - 2,
-        life: 30,
-        maxLife: 30,
-        color,
-      })
-    }
-    setParticles((prev) => [...prev, ...newParticles])
+  // Particle animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setParticles((prev) =>
+        prev
+          .map((particle) => ({
+            ...particle,
+            x: particle.x + particle.vx,
+            y: particle.y + particle.vy,
+            vy: particle.vy + 0.5, // gravity
+            life: particle.life - 1,
+          }))
+          .filter((particle) => particle.life > 0),
+      )
+    }, 16)
+    return () => clearInterval(interval)
   }, [])
 
-  const popBubble = useCallback(
-    (bubbleId: number, event: React.MouseEvent | React.TouchEvent) => {
-      if (gameState !== "playing") return
-
-      const rect = gameAreaRef.current?.getBoundingClientRect()
-      if (!rect) return
-
-      const clientX = "touches" in event ? event.touches[0]?.clientX || event.changedTouches[0]?.clientX : event.clientX
-      const clientY = "touches" in event ? event.touches[0]?.clientY || event.changedTouches[0]?.clientY : event.clientY
-
-      const x = clientX - rect.left
-      const y = clientY - rect.top
-
-      setBubbles((prev) => prev.map((bubble) => (bubble.id === bubbleId ? { ...bubble, isPopping: true } : bubble)))
-
-      createParticles(x, y, "#ff69b4")
-
-      // Use level-appropriate sound effect
-      const level = levels[currentLevel - 1]
-      let soundType = "default"
-      if (level?.unlocks?.soundEffect && unlockedFeatures.some((f) => f.includes(level.unlocks!.soundEffect!))) {
-        soundType = level.unlocks.soundEffect
-      }
-      playPopSound(soundType)
-
-      setScore((prev) => prev + 10 * currentLevel) // More points for higher levels
-      setStreak((prev) => {
-        const newStreak = prev + 1
-        if (newStreak > bestStreak) {
-          setBestStreak(newStreak)
-        }
-
-        if (newStreak % 5 === 0) {
-          const quote = popQuotes[Math.floor(Math.random() * popQuotes.length)]
-          setCurrentQuote(quote)
-          setShowQuote(true)
-          setTimeout(() => setShowQuote(false), 2000)
-        }
-
-        return newStreak
-      })
-
-      setTimeout(() => {
-        setBubbles((prev) => prev.filter((bubble) => bubble.id !== bubbleId))
-        setBubblesRemaining((prev) => prev - 1)
-      }, 300)
-    },
-    [createParticles, playPopSound, bestStreak, gameState, currentLevel, unlockedFeatures],
-  )
-
-  const resetGame = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-    }
-    setScore(0)
-    setStreak(0)
-    setCurrentLevel(1)
-    setGameState("menu")
-    setTimeLeft(0)
-    setBubblesRemaining(0)
-    setCurrentQuote("")
-    setShowQuote(false)
-    setParticles([])
-    setConfetti([])
-    setBubbles([])
-  }, [])
-
-  const nextLevel = useCallback(() => {
-    if (currentLevel < levels.length) {
-      setCurrentLevel((prev) => prev + 1)
-      startLevel(currentLevel + 1)
-    } else {
-      // Game completed!
-      setGameState("menu")
-    }
-  }, [currentLevel, startLevel])
-
+  // Toggle theme
   const toggleTheme = useCallback(() => {
     setIsDark((prev) => {
       const newTheme = !prev
@@ -456,33 +468,48 @@ export default function AirBubblePopper() {
     })
   }, [])
 
-  const currentLevelData = levels[currentLevel - 1]
+  const getCurrentBackground = () => {
+    if (gameState === "menu") {
+      return isDark
+        ? "bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"
+        : "bg-gradient-to-br from-pink-100 via-purple-100 to-indigo-100"
+    }
+
+    const level = levels[currentLevel - 1]
+    if (!level) return "bg-gradient-to-br from-pink-100 via-purple-100 to-indigo-100"
+
+    return isDark
+      ? "bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"
+      : `bg-gradient-to-br ${level.theme.background}`
+  }
 
   return (
-    <div
-      className={`min-h-screen transition-all duration-500 ${
-        isDark
-          ? "bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"
-          : "bg-gradient-to-br from-pink-100 via-purple-100 to-indigo-100"
-      }`}
-    >
+    <div className={`min-h-screen transition-all duration-500 ${getCurrentBackground()}`}>
       {/* Header */}
       <div className="flex justify-between items-center p-4">
-        <div className="flex gap-2 flex-wrap">
-          <Card className="px-3 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+        <div className="flex gap-4">
+          <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
             <div className="text-sm font-medium">Score: {score}</div>
           </Card>
-          <Card className="px-3 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
-            <div className="text-sm font-medium">Level: {currentLevel}</div>
+          <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+            <div className="text-sm font-medium">Streak: {streak}</div>
+          </Card>
+          <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+            <div className="text-sm font-medium">Best: {bestStreak}</div>
           </Card>
           {gameState === "playing" && (
             <>
-              <Card className="px-3 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
-                <div className="text-sm font-medium">Time: {timeLeft}s</div>
+              <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+                <div className="text-sm font-medium">Level: {currentLevel}</div>
               </Card>
-              <Card className="px-3 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+              <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
                 <div className="text-sm font-medium">Bubbles: {bubblesRemaining}</div>
               </Card>
+              {timeLeft !== null && (
+                <Card className="px-4 py-2 bg-white/80 dark:bg-black/80 backdrop-blur-sm">
+                  <div className="text-sm font-medium">Time: {timeLeft}s</div>
+                </Card>
+              )}
             </>
           )}
         </div>
@@ -520,32 +547,25 @@ export default function AirBubblePopper() {
         <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent mb-2">
           Air Bubble Popper
         </h1>
-        <p className="text-lg text-muted-foreground">
-          {gameState === "playing" && currentLevelData
-            ? `${currentLevelData.name} - ${currentLevelData.theme.name}`
-            : "Pop bubbles, level up, feel the vibes ✨"}
-        </p>
+        <p className="text-lg text-muted-foreground">Pop bubbles, level up, feel the vibes ✨</p>
       </div>
 
-      {/* Level Intro */}
-      {showLevelIntro && currentLevelData && (
+      {showLevelIntro && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <Card className="p-8 bg-white/90 dark:bg-black/90 backdrop-blur-sm text-center animate-bounce">
-            <div className="text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+            <div className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
               Level {currentLevel}
             </div>
-            <div className="text-xl font-semibold mb-2">{currentLevelData.name}</div>
-            <div className="text-lg text-muted-foreground mb-4">{currentLevelData.theme.name}</div>
-            <div className="text-sm text-muted-foreground">
-              Pop {currentLevelData.bubbleCount} bubbles in {currentLevelData.timeLimit} seconds!
-            </div>
+            <div className="text-2xl font-semibold mb-2">{levels[currentLevel - 1]?.name}</div>
+            <div className="text-lg text-muted-foreground">{levels[currentLevel - 1]?.theme.name}</div>
+            <div className="text-xl font-bold mt-4 animate-pulse">Let's Pop! 🎯</div>
           </Card>
         </div>
       )}
 
       {/* Quote Display */}
       {showQuote && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 animate-bounce">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-bounce">
           <Card className="px-6 py-4 bg-white/90 dark:bg-black/90 backdrop-blur-sm border-2 border-pink-300 dark:border-pink-600">
             <div className="text-xl font-bold text-center bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
               {currentQuote}
@@ -554,167 +574,176 @@ export default function AirBubblePopper() {
         </div>
       )}
 
-      {/* Game Area */}
-      <div
-        ref={gameAreaRef}
-        className="relative mx-4 h-[60vh] rounded-2xl overflow-hidden bg-white/20 dark:bg-black/20 backdrop-blur-sm border border-white/30 dark:border-white/10"
-        style={{ touchAction: "manipulation" }}
-      >
-        {/* Menu State */}
-        {gameState === "menu" && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Card className="p-8 bg-white/80 dark:bg-black/80 backdrop-blur-sm text-center max-w-md">
-              <Trophy className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
-              <div className="text-2xl font-bold mb-4">Ready to Pop?</div>
-              <div className="text-lg text-muted-foreground mb-6">
-                Progress through {levels.length} unique levels with increasing difficulty!
-              </div>
-              <Button
-                onClick={() => startLevel(currentLevel)}
-                className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 mb-4"
-                size="lg"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Start Level {currentLevel}
-              </Button>
-              {bestStreak > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  Best Streak: {bestStreak} | High Score: {score}
-                </div>
-              )}
-            </Card>
-          </div>
-        )}
-
-        {/* Level Complete State */}
-        {gameState === "levelComplete" && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Card className="p-8 bg-white/80 dark:bg-black/80 backdrop-blur-sm text-center max-w-md">
-              <div className="text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
-                {completionMessage}
-              </div>
-              <div className="text-lg text-muted-foreground mb-4">Level {currentLevel} Complete!</div>
-              <div className="text-sm text-muted-foreground mb-6">
-                Score: {score} | Time Bonus: {timeLeft * 5} points
-              </div>
-              {currentLevelData?.unlocks && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900 dark:to-orange-900 rounded-lg">
-                  <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-                    🎉 {currentLevelData.unlocks.message}
-                  </div>
-                </div>
-              )}
-              {currentLevel < levels.length ? (
+      {gameState === "menu" && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="p-8 bg-white/80 dark:bg-black/80 backdrop-blur-sm text-center max-w-md">
+            <div className="text-2xl font-bold mb-6">Choose Your Level</div>
+            <div className="grid gap-3">
+              {levels.map((level) => (
                 <Button
-                  onClick={nextLevel}
-                  className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
-                  size="lg"
+                  key={level.number}
+                  onClick={() => startLevel(level.number)}
+                  className="w-full justify-between bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+                  disabled={level.number > currentLevel && currentLevel < levels.length}
+                >
+                  <div className="flex items-center gap-2">
+                    <Play className="h-4 w-4" />
+                    <span>
+                      Level {level.number}: {level.name}
+                    </span>
+                  </div>
+                  <div className="text-xs opacity-80">
+                    {level.bubbleCount} bubbles
+                    {level.timeLimit && ` • ${level.timeLimit}s`}
+                  </div>
+                </Button>
+              ))}
+            </div>
+            {unlockedRewards.length > 0 && (
+              <div className="mt-6 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 dark:from-yellow-900 dark:to-orange-900 rounded-lg">
+                <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Trophy className="h-4 w-4" />
+                  Unlocked Rewards
+                </div>
+                <div className="text-xs space-y-1">
+                  {unlockedRewards.map((reward, index) => (
+                    <div key={index} className="text-muted-foreground">
+                      {reward}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {gameState === "levelComplete" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className="p-8 bg-white/90 dark:bg-black/90 backdrop-blur-sm text-center">
+            <div className="text-3xl font-bold mb-4 bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+              {completionMessage}
+            </div>
+            <div className="text-lg mb-6">
+              Level {currentLevel} Complete!
+              {levels[currentLevel - 1]?.unlocks && (
+                <div className="text-sm text-muted-foreground mt-2">New rewards unlocked! 🎁</div>
+              )}
+            </div>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={() => setGameState("menu")} variant="outline">
+                Level Select
+              </Button>
+              {currentLevel < levels.length && (
+                <Button
+                  onClick={() => startLevel(currentLevel + 1)}
+                  className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                 >
                   Next Level
                 </Button>
-              ) : (
-                <div>
-                  <div className="text-xl font-bold mb-4">🏆 Game Complete! 🏆</div>
-                  <Button
-                    onClick={resetGame}
-                    className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                  >
-                    Play Again
-                  </Button>
-                </div>
-              )}
-            </Card>
-          </div>
-        )}
-
-        {/* Game Over State */}
-        {gameState === "gameOver" && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Card className="p-8 bg-white/80 dark:bg-black/80 backdrop-blur-sm text-center">
-              <div className="text-2xl font-bold mb-4">Time's Up! ⏰</div>
-              <div className="text-lg text-muted-foreground mb-4">Final Score: {score}</div>
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => startLevel(currentLevel)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-                >
-                  Retry Level
-                </Button>
-                <Button onClick={resetGame} variant="outline" className="bg-white/80 dark:bg-black/80 backdrop-blur-sm">
-                  Main Menu
-                </Button>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Bubbles */}
-        {bubbles.map((bubble) => (
-          <div
-            key={bubble.id}
-            className={`absolute cursor-pointer select-none transition-all duration-300 ${
-              bubble.isPopping ? "animate-ping opacity-0 scale-150" : "hover:scale-110 active:scale-95"
-            } ${bubble.shimmer ? "animate-pulse" : ""}`}
-            style={{
-              left: `${bubble.x}%`,
-              top: `${bubble.y}%`,
-              width: `${bubble.size}px`,
-              height: `${bubble.size}px`,
-              transform: "translate(-50%, -50%)",
-            }}
-            onClick={(e) => !bubble.isPopping && popBubble(bubble.id, e)}
-            onTouchStart={(e) => {
-              e.preventDefault()
-              !bubble.isPopping && popBubble(bubble.id, e)
-            }}
-          >
-            <div
-              className={`w-full h-full rounded-full bg-gradient-to-br ${bubble.color} shadow-lg border-2 border-white/30 backdrop-blur-sm relative overflow-hidden`}
-            >
-              <div className="absolute top-2 left-2 w-3 h-3 bg-white/60 rounded-full blur-sm" />
-              <div className="absolute top-1 left-1 w-2 h-2 bg-white/80 rounded-full" />
-              {bubble.shimmer && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse" />
               )}
             </div>
-          </div>
-        ))}
+          </Card>
+        </div>
+      )}
 
-        {/* Particles */}
-        {particles.map((particle) => (
-          <div
-            key={particle.id}
-            className="absolute w-1 h-1 rounded-full pointer-events-none"
-            style={{
-              left: `${particle.x}px`,
-              top: `${particle.y}px`,
-              backgroundColor: particle.color,
-              opacity: particle.life / particle.maxLife,
-            }}
-          />
-        ))}
+      {gameState === "gameComplete" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className="p-8 bg-white/90 dark:bg-black/90 backdrop-blur-sm text-center">
+            <div className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
+              🏆 GAME COMPLETE! 🏆
+            </div>
+            <div className="text-xl mb-2">Bubble Master Achieved!</div>
+            <div className="text-lg mb-6">
+              Final Score: {score} | Best Streak: {bestStreak}
+            </div>
+            <Button
+              onClick={resetGame}
+              className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
+            >
+              Play Again
+            </Button>
+          </Card>
+        </div>
+      )}
 
-        {/* Confetti */}
-        {confetti.map((particle) => (
-          <div
-            key={particle.id}
-            className="absolute w-2 h-2 rounded-full pointer-events-none"
-            style={{
-              left: `${particle.x}px`,
-              top: `${particle.y}px`,
-              backgroundColor: particle.color,
-              opacity: particle.life / particle.maxLife,
-            }}
-          />
-        ))}
-      </div>
+      {/* Game Area */}
+      {gameState === "playing" && (
+        <div
+          ref={gameAreaRef}
+          className="relative mx-4 h-[70vh] rounded-2xl overflow-hidden bg-white/20 dark:bg-black/20 backdrop-blur-sm border border-white/30 dark:border-white/10"
+          style={{ touchAction: "manipulation" }}
+        >
+          {/* Bubbles */}
+          {bubbles.map((bubble) => (
+            <div
+              key={bubble.id}
+              className={`absolute cursor-pointer select-none transition-all duration-300 ${
+                bubble.isPopping ? "animate-ping opacity-0 scale-150" : "hover:scale-110 active:scale-95"
+              } ${bubble.shimmer ? "animate-pulse" : ""}`}
+              style={{
+                left: `${bubble.x}%`,
+                top: `${bubble.y}%`,
+                width: `${bubble.size}px`,
+                height: `${bubble.size}px`,
+                transform: "translate(-50%, -50%)",
+              }}
+              onClick={(e) => !bubble.isPopping && popBubble(bubble.id, e)}
+              onTouchStart={(e) => {
+                e.preventDefault()
+                !bubble.isPopping && popBubble(bubble.id, e)
+              }}
+            >
+              <div
+                className={`w-full h-full rounded-full bg-gradient-to-br ${bubble.color} shadow-lg border-2 border-white/30 dark:border-white/10 relative overflow-hidden`}
+              >
+                {/* Glossy highlight */}
+                <div className="absolute top-2 left-2 w-3 h-3 bg-white/60 rounded-full blur-sm" />
+                <div className="absolute top-1 left-1 w-2 h-2 bg-white/80 rounded-full" />
+
+                {/* Shimmer effect */}
+                {bubble.shimmer && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse" />
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Particles */}
+          {particles.map((particle) => (
+            <div
+              key={particle.id}
+              className="absolute w-1 h-1 rounded-full pointer-events-none"
+              style={{
+                left: `${particle.x}px`,
+                top: `${particle.y}px`,
+                backgroundColor: particle.color,
+                opacity: particle.life / particle.maxLife,
+              }}
+            />
+          ))}
+
+          {confetti.map((particle) => (
+            <div
+              key={particle.id}
+              className="absolute w-2 h-2 rounded-full pointer-events-none"
+              style={{
+                left: `${particle.x}px`,
+                top: `${particle.y}px`,
+                backgroundColor: particle.color,
+                opacity: particle.life / particle.maxLife,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="text-center mt-6 px-4">
         <p className="text-sm text-muted-foreground">
-          {gameState === "playing"
-            ? "Pop all bubbles before time runs out! • Build streaks for bonus quotes"
-            : "Progress through levels with unique themes • Unlock special effects and sounds"}
+          {gameState === "menu"
+            ? "Select a level to start popping bubbles • Each level brings new challenges and rewards"
+            : "Tap or click bubbles to pop them • Build streaks for bonus quotes • Complete levels to unlock rewards"}
         </p>
       </div>
     </div>
