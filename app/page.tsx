@@ -463,9 +463,7 @@ export default function AirBubblePopper() {
       className={`min-h-screen transition-all duration-500 ${
         isDark
           ? "bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"
-          : gameState === "playing" && currentLevelData
-            ? `bg-gradient-to-br ${currentLevelData.theme.background}`
-            : "bg-gradient-to-br from-pink-100 via-purple-100 to-indigo-100"
+          : "bg-gradient-to-br from-pink-100 via-purple-100 to-indigo-100"
       }`}
     >
       {/* Header */}
